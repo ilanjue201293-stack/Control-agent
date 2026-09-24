@@ -96,7 +96,9 @@ async def handle_message(ws: ServerConnection, message: dict[str, Any]):
     elif kind == "key":
         press_key(message, message.get("action") == "down")
     elif kind == "type_text":
-        pyautogui.write(str(message.get("text", "")), interval=0)
+        text = str(message.get("text", ""))
+        pyperclip.copy(text)
+        pyautogui.hotkey("ctrl", "v")
     elif kind == "clipboard_get":
         await ws.send(json.dumps({"type": "clipboard", "text": pyperclip.paste()}))
     elif kind == "clipboard_set":
@@ -138,6 +140,7 @@ async def main():
     print("Control Agent Windows")
     print(f"Listening on ws://0.0.0.0:{PORT}")
     print(f"Token: {TOKEN}")
+    print("Use start-public.bat for a secure public WSS tunnel.")
     async with websockets.serve(client_handler, HOST, PORT, max_size=20 * 1024 * 1024):
         await asyncio.Future()
 
