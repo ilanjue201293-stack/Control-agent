@@ -211,10 +211,12 @@ export default function ControlApp() {
     const element = screenRef.current;
     if (!element) return null;
     const rect = element.getBoundingClientRect();
-    return {
+    const point = {
       x: Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)),
       y: Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)),
     };
+    lastPointerRef.current = point;
+    return point;
   }, []);
 
   const pointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
