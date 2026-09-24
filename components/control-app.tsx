@@ -65,7 +65,7 @@ function phaseClass(phase: ConnectionPhase) {
 export default function ControlApp() {
   const socketRef = useRef<WebSocket | null>(null);
   const screenRef = useRef<HTMLDivElement | null>(null);
-  const draggingRef = useRef(false);
+  const draggingRef = useRef(false);\n  const lastPointerRef = useRef({ x: 0.5, y: 0.5 });
 
   const [endpoint, setEndpoint] = useState("");
   const [token, setToken] = useState("");
@@ -400,8 +400,8 @@ export default function ControlApp() {
           <div className="panel-card">
             <div className="eyebrow">SOURIS</div>
             <div className="mouse-grid">
-              <button className="mouse-button primary-mouse" type="button" onClick={() => { if (agentOnline && !demoMode) { send({ type: "pointer", action: "button", x: 0.5, y: 0.5, button: "left", state: "down" }); setTimeout(() => send({ type: "pointer", action: "button", x: 0.5, y: 0.5, button: "left", state: "up" }), 35); } }}>Clic gauche</button>
-              <button className="mouse-button" type="button" onClick={() => { if (agentOnline && !demoMode) { send({ type: "pointer", action: "button", x: 0.5, y: 0.5, button: "right", state: "down" }); setTimeout(() => send({ type: "pointer", action: "button", x: 0.5, y: 0.5, button: "right", state: "up" }), 35); } }}>Clic droit</button>
+              <button className="mouse-button primary-mouse" type="button" onClick={() => { if (agentOnline && !demoMode) { const p = lastPointerRef.current; send({ type: "pointer", action: "button", ...p, button: "left", state: "down" }); setTimeout(() => send({ type: "pointer", action: "button", ...p, button: "left", state: "up" }), 35); } }}>Clic gauche</button>
+              <button className="mouse-button" type="button" onClick={() => { if (agentOnline && !demoMode) { const p = lastPointerRef.current; send({ type: "pointer", action: "button", ...p, button: "right", state: "down" }); setTimeout(() => send({ type: "pointer", action: "button", ...p, button: "right", state: "up" }), 35); } }}>Clic droit</button>
               <button className="mouse-button" type="button" onClick={() => { if (agentOnline && !demoMode) send({ type: "wheel", dx: 0, dy: -600 }); }}>Molette ↑</button>
               <button className="mouse-button" type="button" onClick={() => { if (agentOnline && !demoMode) send({ type: "wheel", dx: 0, dy: 600 }); }}>Molette ↓</button>
             </div>
