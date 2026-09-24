@@ -65,7 +65,8 @@ function phaseClass(phase: ConnectionPhase) {
 export default function ControlApp() {
   const socketRef = useRef<WebSocket | null>(null);
   const screenRef = useRef<HTMLDivElement | null>(null);
-  const draggingRef = useRef(false);\n  const lastPointerRef = useRef({ x: 0.5, y: 0.5 });
+  const draggingRef = useRef(false);
+  const lastPointerRef = useRef({ x: 0.5, y: 0.5 });
 
   const [endpoint, setEndpoint] = useState("");
   const [token, setToken] = useState("");
