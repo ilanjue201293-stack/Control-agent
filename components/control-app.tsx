@@ -201,6 +201,14 @@ export default function ControlApp() {
     }
   }, [endpoint, requestScreen, send, token]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sharedEndpoint = params.get("endpoint") || params.get("agent");
+    const sharedToken = params.get("token");
+    if (sharedEndpoint) setEndpoint(sharedEndpoint);
+    if (sharedToken) setToken(sharedToken);
+  }, []);
+
   const disconnect = useCallback(() => {
     socketRef.current?.close();
     socketRef.current = null;
