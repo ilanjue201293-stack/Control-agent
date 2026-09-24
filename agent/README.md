@@ -1,24 +1,37 @@
 # Control Agent Windows
 
-Agent local pour Control Agent.
+Agent Windows pour Control Agent.
 
-Installation :
-1. Windows 10/11 avec Python 3.11+.
-2. Ouvre un terminal dans ce dossier.
-3. Lance : python -m pip install -r requirements.txt
-4. Définis CONTROL_AGENT_TOKEN avec un token long et secret.
-5. Lance : python agent.py
+## Ce que fait l'agent
 
-L'agent écoute par défaut sur le port 8765.
+- transmet l'écran du PC au navigateur
+- contrôle souris/clavier
+- texte Unicode via presse-papiers
+- presse-papiers
+- volume
+- verrouillage
+- captures d'écran
+- authentification par token
 
-Test local :
-ws://IP_DU_PC:8765
+## Installation
 
-Le PC et la tablette doivent être sur le même réseau.
+Windows 10/11 + Python 3.11+.
 
-Attention : la version Vercel du site est en HTTPS. Un navigateur peut bloquer ws:// depuis une page HTTPS. Pour le premier test local, il faudra soit servir aussi l'interface en HTTP sur le réseau local, soit ajouter ensuite un relais/tunnel WSS sécurisé.
+Le plus simple :
 
-Sécurité :
-- Change toujours le token par défaut.
-- N'expose pas directement le port 8765 sur Internet.
-- L'agent est conçu pour contrôler ton propre PC.
+1. Double-clique sur **start-public.bat**.
+2. Le script installe les dépendances Python.
+3. Il démarre l'agent Windows.
+4. Il télécharge automatiquement **cloudflared** si nécessaire.
+5. Il crée un tunnel WSS public temporaire vers le PC.
+6. Une URL `https://xxxxx.trycloudflare.com` apparaît dans la fenêtre.
+7. Dans le site Control Agent, utilise la même adresse en `wss://xxxxx.trycloudflare.com`.
+8. Utilise le token affiché par le script.
+
+Le tunnel est temporaire et disparaît quand cloudflared est arrêté. Le port 8765 n'est pas exposé directement sur Internet.
+
+## Important
+
+Ne partage jamais ton token. Le token donne accès aux commandes de contrôle de ton PC.
+
+Pour une version définitive, on pourra remplacer le Quick Tunnel par un relais/pairing permanent et supprimer complètement la saisie manuelle de l'URL.
