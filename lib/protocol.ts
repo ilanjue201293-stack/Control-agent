@@ -28,13 +28,6 @@ export type AgentToWebMessage =
       timestamp: number;
     }
   | {
-      type: "audio_chunk";
-      sampleRate: number;
-      channels: 1;
-      data: string;
-      timestamp: number;
-    }
-  | {
       type: "agent_state";
       connected: boolean;
       locked?: boolean;
@@ -60,7 +53,6 @@ export type WebToAgentMessage =
       client: { name: "control-agent-web"; version: string; userAgent: string };
     }
   | { type: "screen_request"; quality?: number; maxFps?: number }
-  | { type: "audio_request"; enabled: boolean; sampleRate?: number }
   | {
       type: "pointer";
       action: "move" | "button";
