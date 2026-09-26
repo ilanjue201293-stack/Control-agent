@@ -372,6 +372,8 @@ export default function ControlApp() {
               </div>
             </div>
             <div className="screen-tools">
+              <span className="live-badge">● LIVE</span>
+              <button className="tiny-button" onClick={requestScreen} disabled={!agentOnline || demoMode} type="button">Actualiser</button>
               <button className="tiny-button" onClick={() => command("screenshot")} disabled={!agentOnline || demoMode} type="button">Capture</button>
             </div>
           </div>
