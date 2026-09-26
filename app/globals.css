@@ -110,6 +110,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 .screen-title { margin-top: 3px; font-size: 13px; font-weight: 700; }
 .screen-tools { display: flex; gap: 7px; }
 .tiny-button { padding: 7px 10px; border-radius: 10px; }
+.live-badge { color: var(--green); font-size: 10px; font-weight: 800; letter-spacing: .06em; white-space: nowrap; }
 
 .screen-frame-shell { padding: 10px; background: #080a0d; }
 .screen-frame {
