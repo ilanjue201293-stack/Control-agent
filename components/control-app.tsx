@@ -119,7 +119,7 @@ export default function ControlApp() {
   }, []);
 
   const requestScreen = useCallback(() => {
-    send({ type: "screen_request", quality: 68, maxFps: 15 });
+    send({ type: "screen_request", quality: 58, maxFps: 12 });
   }, [send]);
 
 
@@ -154,7 +154,6 @@ export default function ControlApp() {
           },
         });
         window.localStorage.setItem("control-agent:endpoint", endpoint);
-        requestScreen();
       });
 
       socket.addEventListener("message", (event) => {
