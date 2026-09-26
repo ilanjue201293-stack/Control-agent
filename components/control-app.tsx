@@ -513,7 +513,13 @@ export default function ControlApp() {
                 const next = !audioEnabled;
                 audioEnabledRef.current = next;
                 setAudioEnabled(next);
-                if (next) {\n                  const context = ensureAudioContext();\n                  if (context) {\n                    void context.resume();\n                    audioNextTimeRef.current = 0;\n                  }\n                }
+                if (next) {
+                  const context = ensureAudioContext();
+                  if (context) {
+                    void context.resume();
+                    audioNextTimeRef.current = 0;
+                  }
+                }
               }} disabled={!agentOnline || demoMode}>
                 🔊 {audioEnabled ? "Son ON" : "Son OFF"}
               </button>
