@@ -147,6 +147,7 @@ async def client_handler(ws: ServerConnection):
             }
         }))
         await send_state(ws)
+        tasks["screen"] = asyncio.create_task(stream_screen(ws, 68, 15))
         async for raw in ws:
             try:
                 await handle_message(ws, json.loads(raw), tasks)
