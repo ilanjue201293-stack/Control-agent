@@ -39,6 +39,20 @@ async def send_frame(ws: ServerConnection, quality: int = 78):
         "width": width, "height": height, "timestamp": int(time.time() * 1000)
     }))
 
+async def stream_screen(ws: ServerConnection, quality: int, max_fps: int):
+    interval = 1 / max(1, min(30, max_fps))
+    while True:
+        started = time.perf_counter()
+        try:
+            mime, data, width, height = await asyncio.to_thread(make_frame, quality)
+            await ws.send(json.dumps({
+                "type": "screen_frame", "mime": mime, "data": data,
+                "width": width, "height": height, "timestamp": int(time.time() * 1000)
+            }))
+        except Exception:
+            return
+        await asyncio.sleep(max(0, interval - (time.perf_counter() - started)))
+
 async def send_state(ws: ServerConnection):
     width, height = pyautogui.size()
     pos = pyautogui.position()
@@ -74,10 +88,14 @@ def system_action(action: str):
     elif action == "volume_mute":
         pyautogui.press("volumemute")
 
-async def handle_message(ws: ServerConnection, message: dict[str, Any]):
+async def handle_message(ws: ServerConnection, message: dict[str, Any], tasks: dict[str, Any]):
     kind = message.get("type")
     if kind == "screen_request":
-        await send_frame(ws, int(message.get("quality", 78)))
+        if tasks.get("screen"):
+            tasks["screen"].cancel()
+        tasks["screen"] = asyncio.create_task(stream_screen(
+            ws, int(message.get("quality", 68)), int(message.get("maxFps", 15))
+        ))
     elif kind == "pointer":
         width, height = pyautogui.size()
         x = max(0.0, min(1.0, float(message.get("x", 0.5))))
@@ -111,6 +129,7 @@ async def handle_message(ws: ServerConnection, message: dict[str, Any]):
             system_action(action)
 
 async def client_handler(ws: ServerConnection):
+    tasks = {"screen": None}
     try:
         raw = await asyncio.wait_for(ws.recv(), timeout=10)
         hello = json.loads(raw)
@@ -130,11 +149,14 @@ async def client_handler(ws: ServerConnection):
         await send_state(ws)
         async for raw in ws:
             try:
-                await handle_message(ws, json.loads(raw))
+                await handle_message(ws, json.loads(raw), tasks)
             except Exception as exc:
                 await ws.send(json.dumps({"type": "error", "code": "agent_error", "message": str(exc)}))
     except websockets.ConnectionClosed:
         pass
+    finally:
+        if tasks["screen"]:
+            tasks["screen"].cancel()
 
 async def main():
     print("Control Agent Windows")
