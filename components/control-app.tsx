@@ -171,20 +171,20 @@ export default function ControlApp() {
       });
 
       socket.addEventListener("message", async (event) => {
-        try {
-          if (typeof event.data !== "string") {
-            if (!audioEnabledRef.current) return;
+        if (typeof event.data !== "string") {
+          if (!audioEnabledRef.current) return;
+          try {
             const buffer = event.data instanceof Blob ? await event.data.arrayBuffer() : event.data;
             const bytes = new Uint8Array(buffer);
-            if (bytes.length < 10 || String.fromCharCode(...bytes.slice(0, 4)) !== "AUD1") return;
+            if (bytes.length < 10 || String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]) !== "AUD1") return;
             const view = new DataView(buffer);
             const sampleRate = view.getUint32(4, true);
             const channels = view.getUint8(8);
             const pcmOffset = 10;
             const sampleCount = Math.floor((bytes.length - pcmOffset) / 2);
-            if (!sampleRate || !channels || sampleCount <= 0) return;
+            if (!sampleRate || channels < 1 || channels > 2 || sampleCount <= 0) return;
             const context = ensureAudioContext();
-            if (!context) return;
+            if (!context || context.state !== "running") return;
             const frames = Math.floor(sampleCount / channels);
             const audioBuffer = context.createBuffer(channels, frames, sampleRate);
             const pcm = new DataView(buffer, pcmOffset);
@@ -202,9 +202,13 @@ export default function ControlApp() {
             audioNextTimeRef.current = Math.max(audioNextTimeRef.current, now + 0.03);
             source.start(audioNextTimeRef.current);
             audioNextTimeRef.current += audioBuffer.duration;
-            return;
+          } catch {
+            // Audio malformé/autoplay : ne pas afficher d'erreur rouge.
           }
+          return;
+        }
 
+        try {
           const data: unknown = JSON.parse(String(event.data));
           if (!isAgentMessage(data)) return;
 
@@ -509,7 +513,7 @@ export default function ControlApp() {
                 const next = !audioEnabled;
                 audioEnabledRef.current = next;
                 setAudioEnabled(next);
-                if (next) ensureAudioContext();
+                if (next) {\n                  const context = ensureAudioContext();\n                  if (context) {\n                    void context.resume();\n                    audioNextTimeRef.current = 0;\n                  }\n                }
               }} disabled={!agentOnline || demoMode}>
                 🔊 {audioEnabled ? "Son ON" : "Son OFF"}
               </button>
