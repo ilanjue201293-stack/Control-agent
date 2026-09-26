@@ -70,6 +70,10 @@ export default function ControlApp() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioNextTimeRef = useRef(0);
   const audioEnabledRef = useRef(true);
+  const activePadPointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const padDragRef = useRef(false);
+  const heldModifiersRef = useRef<Set<Modifier>>(new Set());
+  const fullscreenRef = useRef<HTMLDivElement | null>(null);
 
   const [endpoint, setEndpoint] = useState("");
   const [token, setToken] = useState("");
@@ -85,6 +89,9 @@ export default function ControlApp() {
   const [demoMode, setDemoMode] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [compactBarOpen, setCompactBarOpen] = useState(true);
+  const [ctrlLatch, setCtrlLatch] = useState(false);
 
   const demoImage = useMemo(() => {
     const svg =
@@ -267,6 +274,112 @@ export default function ControlApp() {
     setPhase("closed");
   }, []);
 
+  const toggleFullscreen = useCallback(async () => {
+    const element = fullscreenRef.current;
+    if (!element) return;
+    try {
+      if (!document.fullscreenElement) {
+        if (element.requestFullscreen) await element.requestFullscreen();
+        else setIsFullscreen(true);
+      } else {
+        await document.exitFullscreen();
+      }
+    } catch {
+      setIsFullscreen((value) => !value);
+    }
+  }, []);
+
+  useEffect(() => {
+    const syncFullscreen = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", syncFullscreen);
+    return () => document.removeEventListener("fullscreenchange", syncFullscreen);
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (!agentOnline || demoMode) return;
+      const modifierMap: Record<string, Modifier> = { Control: "ctrl", Alt: "alt", Shift: "shift", Meta: "meta" };
+      const modifier = modifierMap[event.key];
+      if (modifier) {
+        event.preventDefault();
+        heldModifiersRef.current.add(modifier);
+        return;
+      }
+      const modifiers = Array.from(heldModifiersRef.current);
+      if (ctrlLatch && !modifiers.includes("ctrl")) modifiers.push("ctrl");
+      if (event.key === "Tab" || event.key.startsWith("Arrow") || event.key === " ") event.preventDefault();
+      const key = event.key === " " ? "space" : event.key;
+      send({ type: "key", action: "down", key, code: event.code, modifiers });
+      if (!event.repeat) window.setTimeout(() => send({ type: "key", action: "up", key, code: event.code, modifiers }), 35);
+    };
+    const onKeyUp = (event: globalThis.KeyboardEvent) => {
+      const modifierMap: Record<string, Modifier> = { Control: "ctrl", Alt: "alt", Shift: "shift", Meta: "meta" };
+      const modifier = modifierMap[event.key];
+      if (modifier) {
+        event.preventDefault();
+        heldModifiersRef.current.delete(modifier);
+      }
+    };
+    const releaseKeys = () => {
+      heldModifiersRef.current.clear();
+      setCtrlLatch(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", releaseKeys);
+    document.addEventListener("visibilitychange", releaseKeys);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", releaseKeys);
+      document.removeEventListener("visibilitychange", releaseKeys);
+    };
+  }, [agentOnline, ctrlLatch, demoMode, send]);
+
+  const sendMouseButton = useCallback((button: MouseButton, state: "down" | "up") => {
+    if (!agentOnline || demoMode) return;
+    const p = lastPointerRef.current;
+    send({ type: "pointer", action: "button", ...p, button, state });
+  }, [agentOnline, demoMode, send]);
+
+  const sendCtrlShortcut = useCallback((key: string, code?: string) => {
+    if (!agentOnline || demoMode) return;
+    const modifiers: Modifier[] = ctrlLatch ? ["ctrl"] : ["ctrl"];
+    send({ type: "key", action: "down", key, code, modifiers });
+    window.setTimeout(() => send({ type: "key", action: "up", key, code, modifiers }), 35);
+  }, [agentOnline, demoMode, ctrlLatch, send]);
+
+  const mousePadDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!agentOnline || demoMode) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    activePadPointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (activePadPointersRef.current.size === 2) {
+      padDragRef.current = true;
+      sendMouseButton("left", "down");
+    }
+  }, [agentOnline, demoMode, sendMouseButton]);
+
+  const mousePadMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!agentOnline || demoMode) return;
+    const points = activePadPointersRef.current;
+    const previous = points.get(event.pointerId);
+    if (!previous) return;
+    points.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const dx = event.clientX - previous.x;
+    const dy = event.clientY - previous.y;
+    if (dx === 0 && dy === 0) return;
+    send({ type: "pointer", action: "move_relative", x: dx * 1.65, y: dy * 1.65 });
+  }, [agentOnline, demoMode, send]);
+
+  const mousePadUp = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!agentOnline || demoMode) return;
+    activePadPointersRef.current.delete(event.pointerId);
+    if (padDragRef.current && activePadPointersRef.current.size < 2) {
+      padDragRef.current = false;
+      sendMouseButton("left", "up");
+    }
+  }, [agentOnline, demoMode, sendMouseButton]);
+
   const normalizedPoint = useCallback((event: { clientX: number; clientY: number }) => {
     const element = screenRef.current;
     if (!element) return null;
@@ -412,7 +525,7 @@ export default function ControlApp() {
         </div>
       )}
 
-      <section className="workspace">
+      <section ref={fullscreenRef} className={"workspace " + (isFullscreen ? "remote-fullscreen" : "")}>
         <div className="screen-card">
           <div className="screen-card-head">
             <div>
@@ -424,6 +537,7 @@ export default function ControlApp() {
             <div className="screen-tools">
               <span className="live-badge">● LIVE</span>
               <button className="tiny-button" onClick={requestScreen} disabled={!agentOnline || demoMode} type="button">Actualiser</button>
+              <button className="tiny-button" onClick={toggleFullscreen} disabled={!agentOnline || demoMode} type="button">⛶ Plein écran</button>
               <button className="tiny-button" onClick={() => command("screenshot")} disabled={!agentOnline || demoMode} type="button">Capture</button>
             </div>
           </div>
@@ -457,16 +571,32 @@ export default function ControlApp() {
             <span>Tap = clic gauche</span>
             <span>Molette = scroll</span>
           </div>
+          {isFullscreen && compactBarOpen && (
+            <div className="fullscreen-bar">
+              <button className="fs-mini" onClick={() => sendMouseButton("left", "down")} onPointerUp={() => sendMouseButton("left", "up")}>L</button>
+              <button className="fs-mini" onClick={() => sendMouseButton("right", "down")} onPointerUp={() => sendMouseButton("right", "up")}>R</button>
+              <button className={"fs-mini " + (ctrlLatch ? "active" : "")} onClick={() => setCtrlLatch((v) => !v)}>Ctrl</button>
+              {["C","V","X","Z","A","S","D","F","Q","W"].map((letter) => (
+                <button className="fs-mini" key={letter} onClick={() => sendCtrlShortcut(letter.toLowerCase(), "Key" + letter)}>{letter}</button>
+              ))}
+              <button className="fs-mini" onClick={() => setCompactBarOpen(false)}>×</button>
+            </div>
+          )}
+          {isFullscreen && !compactBarOpen && (
+            <button className="fullscreen-reopen" onClick={() => setCompactBarOpen(true)}>⌄</button>
+          )}
         </div>
 
         <aside className="control-panel">
           <div className="panel-card">
             <div className="eyebrow">SOURIS</div>
             <div className="mouse-grid">
-              <button className="mouse-button primary-mouse" type="button" onClick={() => { if (agentOnline && !demoMode) { const p = lastPointerRef.current; send({ type: "pointer", action: "button", ...p, button: "left", state: "down" }); setTimeout(() => send({ type: "pointer", action: "button", ...p, button: "left", state: "up" }), 35); } }}>Clic gauche</button>
-              <button className="mouse-button" type="button" onClick={() => { if (agentOnline && !demoMode) { const p = lastPointerRef.current; send({ type: "pointer", action: "button", ...p, button: "right", state: "down" }); setTimeout(() => send({ type: "pointer", action: "button", ...p, button: "right", state: "up" }), 35); } }}>Clic droit</button>
-              <button className="mouse-button" type="button" onClick={() => { if (agentOnline && !demoMode) send({ type: "wheel", dx: 0, dy: -600 }); }}>Molette ↑</button>
-              <button className="mouse-button" type="button" onClick={() => { if (agentOnline && !demoMode) send({ type: "wheel", dx: 0, dy: 600 }); }}>Molette ↓</button>
+              <button className="mouse-button primary-mouse" type="button" onClick={() => sendMouseButton("left", "down")} onPointerUp={() => sendMouseButton("left", "up")}>Clic gauche</button>
+              <button className="mouse-button" type="button" onClick={() => sendMouseButton("right", "down")} onPointerUp={() => sendMouseButton("right", "up")}>Clic droit</button>
+              <div className="mouse-pad" onPointerDown={mousePadDown} onPointerMove={mousePadMove} onPointerUp={mousePadUp} onPointerCancel={mousePadUp} onWheel={(event) => { event.preventDefault(); if (agentOnline && !demoMode) send({ type: "wheel", dx: event.deltaX, dy: event.deltaY }); }}>
+                <span>PAD SOURIS</span>
+                <small>1 doigt = déplacer · 2 doigts = drag</small>
+              </div>
             </div>
           </div>
 
