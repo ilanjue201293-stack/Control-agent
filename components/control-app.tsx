@@ -67,6 +67,9 @@ export default function ControlApp() {
   const screenRef = useRef<HTMLDivElement | null>(null);
   const draggingRef = useRef(false);
   const lastPointerRef = useRef({ x: 0.5, y: 0.5 });
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioNextTimeRef = useRef(0);
+  const audioEnabledRef = useRef(true);
 
   const [endpoint, setEndpoint] = useState("");
   const [token, setToken] = useState("");
@@ -81,6 +84,7 @@ export default function ControlApp() {
   const [textToType, setTextToType] = useState("");
   const [demoMode, setDemoMode] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [audioEnabled, setAudioEnabled] = useState(true);
 
   const demoImage = useMemo(() => {
     const svg =
@@ -118,6 +122,15 @@ export default function ControlApp() {
     return true;
   }, []);
 
+  const ensureAudioContext = useCallback(() => {
+    if (typeof window === "undefined") return null;
+    const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextClass) return null;
+    if (!audioContextRef.current) audioContextRef.current = new AudioContextClass();
+    if (audioContextRef.current.state === "suspended") void audioContextRef.current.resume();
+    return audioContextRef.current;
+  }, []);
+
   const requestScreen = useCallback(() => {
     send({ type: "screen_request", quality: 58, maxFps: 12 });
   }, [send]);
@@ -136,6 +149,7 @@ export default function ControlApp() {
     socketRef.current?.close();
     setPhase("connecting");
     setAgentOnline(false);
+    ensureAudioContext();
 
     try {
       const socket = new WebSocket(url);
@@ -156,8 +170,41 @@ export default function ControlApp() {
         window.localStorage.setItem("control-agent:endpoint", endpoint);
       });
 
-      socket.addEventListener("message", (event) => {
+      socket.addEventListener("message", async (event) => {
         try {
+          if (typeof event.data !== "string") {
+            if (!audioEnabledRef.current) return;
+            const buffer = event.data instanceof Blob ? await event.data.arrayBuffer() : event.data;
+            const bytes = new Uint8Array(buffer);
+            if (bytes.length < 10 || String.fromCharCode(...bytes.slice(0, 4)) !== "AUD1") return;
+            const view = new DataView(buffer);
+            const sampleRate = view.getUint32(4, true);
+            const channels = view.getUint8(8);
+            const pcmOffset = 10;
+            const sampleCount = Math.floor((bytes.length - pcmOffset) / 2);
+            if (!sampleRate || !channels || sampleCount <= 0) return;
+            const context = ensureAudioContext();
+            if (!context) return;
+            const frames = Math.floor(sampleCount / channels);
+            const audioBuffer = context.createBuffer(channels, frames, sampleRate);
+            const pcm = new DataView(buffer, pcmOffset);
+            for (let channel = 0; channel < channels; channel += 1) {
+              const channelData = audioBuffer.getChannelData(channel);
+              for (let i = 0; i < frames; i += 1) {
+                const offset = (i * channels + channel) * 2;
+                channelData[i] = pcm.getInt16(offset, true) / 32768;
+              }
+            }
+            const source = context.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(context.destination);
+            const now = context.currentTime;
+            audioNextTimeRef.current = Math.max(audioNextTimeRef.current, now + 0.03);
+            source.start(audioNextTimeRef.current);
+            audioNextTimeRef.current += audioBuffer.duration;
+            return;
+          }
+
           const data: unknown = JSON.parse(String(event.data));
           if (!isAgentMessage(data)) return;
 
@@ -199,7 +246,7 @@ export default function ControlApp() {
       setPhase("error");
       setError("URL WebSocket invalide.");
     }
-  }, [endpoint, requestScreen, send, token]);
+  }, [endpoint, ensureAudioContext, requestScreen, send, token]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -458,6 +505,14 @@ export default function ControlApp() {
               <button className="system-button" type="button" onClick={() => command("volume_down")} disabled={!agentOnline || demoMode}>Vol −</button>
               <button className="system-button" type="button" onClick={() => command("volume_up")} disabled={!agentOnline || demoMode}>Vol +</button>
               <button className="system-button" type="button" onClick={() => command("volume_mute")} disabled={!agentOnline || demoMode}>Muet</button>
+              <button className={"system-button " + (audioEnabled ? "" : "danger")} type="button" onClick={() => {
+                const next = !audioEnabled;
+                audioEnabledRef.current = next;
+                setAudioEnabled(next);
+                if (next) ensureAudioContext();
+              }} disabled={!agentOnline || demoMode}>
+                🔊 {audioEnabled ? "Son ON" : "Son OFF"}
+              </button>
               <button className="system-button danger" type="button" onClick={() => command("lock")} disabled={!agentOnline || demoMode}>Verrouiller</button>
             </div>
           </div>
