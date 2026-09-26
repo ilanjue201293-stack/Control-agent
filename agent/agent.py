@@ -28,8 +28,12 @@ def make_frame(quality: int = 78):
         monitor = sct.monitors[1]
         shot = sct.grab(monitor)
         image = Image.frombytes("RGB", shot.size, shot.rgb)
+    max_width = 1280
+    if image.width > max_width:
+        ratio = max_width / image.width
+        image = image.resize((max_width, round(image.height * ratio)), Image.Resampling.LANCZOS)
     output = io.BytesIO()
-    image.save(output, format="JPEG", quality=max(30, min(95, quality)), optimize=True)
+    image.save(output, format="JPEG", quality=max(30, min(85, quality)), optimize=True)
     return "image/jpeg", base64.b64encode(output.getvalue()).decode("ascii"), image.width, image.height
 
 async def send_frame(ws: ServerConnection, quality: int = 78):
@@ -147,7 +151,7 @@ async def client_handler(ws: ServerConnection):
             }
         }))
         await send_state(ws)
-        tasks["screen"] = asyncio.create_task(stream_screen(ws, 68, 15))
+        tasks["screen"] = asyncio.create_task(stream_screen(ws, 58, 12))
         async for raw in ws:
             try:
                 await handle_message(ws, json.loads(raw), tasks)
