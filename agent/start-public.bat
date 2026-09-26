@@ -8,7 +8,7 @@ if "%CONTROL_AGENT_TOKEN%"=="" (
 
 echo.
 echo [1/3] Installing Python dependencies...
-python -m pip install -r requirements.txt
+py -m pip install -r requirements.txt
 if errorlevel 1 (
   echo Python installation/dependencies failed.
   pause
@@ -17,7 +17,7 @@ if errorlevel 1 (
 
 echo.
 echo [2/3] Starting the Windows agent...
-start "Control Agent Windows" cmd /k "set CONTROL_AGENT_TOKEN=%CONTROL_AGENT_TOKEN%&& cd /d "%~dp0"&& python agent.py"
+start "Control Agent Windows" cmd /k "set CONTROL_AGENT_TOKEN=%CONTROL_AGENT_TOKEN%&& cd /d "%~dp0"&& py agent.py"
 
 echo.
 echo [3/3] Preparing Cloudflare Quick Tunnel...
