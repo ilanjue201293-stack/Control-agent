@@ -165,6 +165,9 @@ async def handle_message(ws: ServerConnection, message: dict[str, Any], tasks: d
             stream_screen(ws, int(message.get("quality", 45)), int(message.get("maxFps", 15)))
         )
     elif kind == "pointer":
+        if message.get("action") == "move_relative":
+            pyautogui.moveRel(int(float(message.get("x", 0))), int(float(message.get("y", 0))), _pause=False)
+            return
         width, height = pyautogui.size()
         x = max(0.0, min(1.0, float(message.get("x", 0.5))))
         y = max(0.0, min(1.0, float(message.get("y", 0.5))))
