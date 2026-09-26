@@ -81,10 +81,6 @@ export default function ControlApp() {
   const [textToType, setTextToType] = useState("");
   const [demoMode, setDemoMode] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [audioEnabled, setAudioEnabled] = useState(false);
-  const audioEnabledRef = useRef(false);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const nextAudioTimeRef = useRef(0);
 
   const demoImage = useMemo(() => {
     const svg =
@@ -126,29 +122,6 @@ export default function ControlApp() {
     send({ type: "screen_request", quality: 68, maxFps: 15 });
   }, [send]);
 
-  const requestAudio = useCallback(async (enabled: boolean) => {
-    if (!enabled) {
-      audioEnabledRef.current = false;
-      setAudioEnabled(false);
-      send({ type: "audio_request", enabled: false });
-      return;
-    }
-    try {
-      const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-      if (!AudioContextClass) throw new Error("AudioContext indisponible");
-      const context = audioContextRef.current || new AudioContextClass();
-      audioContextRef.current = context;
-      await context.resume();
-      nextAudioTimeRef.current = Math.max(context.currentTime + 0.05, nextAudioTimeRef.current);
-      audioEnabledRef.current = true;
-      setAudioEnabled(true);
-      send({ type: "audio_request", enabled: true, sampleRate: 16000 });
-    } catch {
-      setError("Impossible d’activer le son sur ce navigateur.");
-      audioEnabledRef.current = false;
-      setAudioEnabled(false);
-    }
-  }, [send]);
 
   const connect = useCallback(() => {
     const url = toWebSocketUrl(endpoint);
@@ -399,8 +372,6 @@ export default function ControlApp() {
               </div>
             </div>
             <div className="screen-tools">
-              <span className="live-badge">● LIVE</span>
-              <button className="tiny-button" onClick={() => requestAudio(!audioEnabled)} disabled={!agentOnline || demoMode} type="button">{audioEnabled ? "🔊 Son" : "🔇 Son"}</button>
               <button className="tiny-button" onClick={() => command("screenshot")} disabled={!agentOnline || demoMode} type="button">Capture</button>
             </div>
           </div>
