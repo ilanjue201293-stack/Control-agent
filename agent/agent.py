@@ -45,17 +45,21 @@ async def send_frame(ws: ServerConnection, quality: int = 78):
 
 async def stream_screen(ws: ServerConnection, quality: int, max_fps: int):
     interval = 1 / max(1, min(30, max_fps))
-    while True:
-        started = time.perf_counter()
-        try:
+    print(f"[screen] stream started: quality={quality}, fps={max_fps}")
+    try:
+        while True:
+            started = time.perf_counter()
             mime, data, width, height = await asyncio.to_thread(make_frame, quality)
             await ws.send(json.dumps({
                 "type": "screen_frame", "mime": mime, "data": data,
                 "width": width, "height": height, "timestamp": int(time.time() * 1000)
             }))
-        except Exception:
-            return
-        await asyncio.sleep(max(0, interval - (time.perf_counter() - started)))
+            await asyncio.sleep(max(0, interval - (time.perf_counter() - started)))
+    except asyncio.CancelledError:
+        print("[screen] stream cancelled")
+        raise
+    except Exception as exc:
+        print(f"[screen] stream stopped: {type(exc).__name__}: {exc}")
 
 async def send_state(ws: ServerConnection):
     width, height = pyautogui.size()
@@ -151,7 +155,7 @@ async def client_handler(ws: ServerConnection):
             }
         }))
         await send_state(ws)
-        tasks["screen"] = asyncio.create_task(stream_screen(ws, 58, 12))
+        tasks["screen"] = asyncio.create_task(stream_screen(ws, 50, 10))
         async for raw in ws:
             try:
                 await handle_message(ws, json.loads(raw), tasks)
