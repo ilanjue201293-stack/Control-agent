@@ -55,7 +55,7 @@ export type WebToAgentMessage =
   | { type: "screen_request"; quality?: number; maxFps?: number }
   | {
       type: "pointer";
-      action: "move" | "button";
+      action: "move" | "move_relative" | "button";
       x: number;
       y: number;
       button?: MouseButton;
